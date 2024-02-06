@@ -279,6 +279,7 @@ $(document).ready(function () {
 
         // If message contains a clip url
         if (message.includes('https://clips.twitch.tv/')) {
+            // TODO: explore alternate clip URL variations
 
             // Remove trailing spaces from message
             message = message.trim();
@@ -298,8 +299,14 @@ $(document).ready(function () {
             // get the clip_url from the api
             getClipUrl(clip_Id, function (info) {
                 if (info.data[0]['clip_url']) {
+                    console.log(info.data[0]);
                     // save the clip url to localstorage
                     localStorage.setItem('twitchSOWatchClip', info.data[0]['clip_url']);
+                    localStorage.setItem('twitchSOWatchChannel', info.data[0]['broadcaster_name']);
+                    localStorage.setItem('twitchSOWatchTitle', info.data[0]['title']);
+                    localStorage.setItem('twitchSOWatchCreatedAt', info.data[0]['created_at']);
+                    localStorage.setItem('twitchSOWatchCreatorName', info.data[0]['creator_name']);
+                    localStorage.setItem('twitchSOWatchGameID', info.data[0]['game_id']);
                 }
             });
 
@@ -349,6 +356,7 @@ $(document).ready(function () {
 
                 // Ignore if video clip is playing
                 if (document.getElementById("clip") || document.getElementById("text-container")) {
+                    // TODO :  add new requests to a queue?
                     return false; // Exit and Do nothing
                 }
 
@@ -497,20 +505,11 @@ $(document).ready(function () {
                                     }
                                     titleText = "<div id='text-container' class='hide'><span class='title-text'>" + decodeURIComponent(customTitle) + "</span></div>"
                                 } else {
-                                    titleText = "<div id='text-container' class='hide'><span class='title-text'>Go check out " + info.data[0]['broadcaster_name'] + "</span></div>"
+                                    if (watchClip === true) { titleText = "<div id='text-container' class='hide'><span class='title-text'>Go check out " + localStorage.getItem('twitchSOWatchChannel') + "</span></div>" }
+                                    else if (replayClip === true) { titleText = "<div id='text-container' class='hide'><span class='title-text'>Go check out " + localStorage.getItem('twitchSOChannel') + "</span></div>" }
+                                    else { titleText = "<div id='text-container' class='hide'><span class='title-text'>Go check out " + info.data[0]['broadcaster_name'] + "</span></div>" }
                                 }
                             } else {
-                                titleText = '';
-                            }
-
-                            if (watchClip === true) {
-                                if (document.getElementById("text-container")) {
-                                    document.getElementById("text-container").remove();
-                                }
-                                if (document.getElementById("details-container")) {
-                                    document.getElementById("details-container").remove();
-                                }
-
                                 titleText = '';
                             }
 
@@ -534,38 +533,61 @@ $(document).ready(function () {
 
                                     // Show clip title if it exists
                                     if (detailsText.includes("{title}")) {
-                                        if (info.data[indexClip]['title']) {
-                                            detailsText = detailsText.replace("{title}", info.data[indexClip]['title']);
-                                        } else {
-                                            detailsText = detailsText.replace("{title}", "?");
+                                        if (watchClip === true) { detailsText = detailsText.replace("{title}", localStorage.getItem('twitchSOWatchTitle')); }
+                                        else if (replayClip === true) { detailsText = detailsText.replace("{title}", localStorage.getItem('twitchSOTitle')); }
+                                        else {
+                                            if (info.data[indexClip]['title']) {
+                                                detailsText = detailsText.replace("{title}", info.data[indexClip]['title']);
+                                            } else {
+                                                detailsText = detailsText.replace("{title}", "?");
+                                            }
                                         }
                                     }
 
                                     // Get game name/title using the game_id from the clip's json data
                                     if (detailsText.includes("{game}")) {
-                                        // Show game title if it exists
-                                        if (info.data[indexClip]['game_id']) {
-                                            let game = game_title(info.data[indexClip]['game_id']);
+                                        if (watchClip === true) {
+                                            let game = game_title(localStorage.getItem('twitchSOWatchGameID'));
                                             detailsText = detailsText.replace("{game}", game.data[0]['name']);
-                                        } else {
-                                            detailsText = detailsText.replace("{game}", "?");
+                                        }
+                                        else if (replayClip === true) {
+                                            let game = game_title(localStorage.getItem('twitchSOGameID'));
+                                            detailsText = detailsText.replace("{game}", game.data[0]['name']);
+                                        }
+                                        else {
+                                            // Show game title if it exists
+                                            if (info.data[indexClip]['game_id']) {
+                                                let game = game_title(info.data[indexClip]['game_id']);
+                                                detailsText = detailsText.replace("{game}", game.data[0]['name']);
+                                            } else {
+                                                detailsText = detailsText.replace("{game}", "?");
+                                            }
                                         }
                                     }
 
                                     // Format created_at date
                                     if (detailsText.includes("{created_at}")) {
-                                        detailsText = detailsText.replace("{created_at}", moment(info.data[indexClip]['created_at']).format("MMMM D, YYYY"));
+                                        if (watchClip === true) { detailsText = detailsText.replace("{created_at}", moment(localStorage.getItem('twitchSOWatchCreatedAt')).format("MMMM D, YYYY")); }
+                                        else if (replayClip === true) { detailsText = detailsText.replace("{created_at}", moment(localStorage.getItem('twitchSOCreatedAt')).format("MMMM D, YYYY")); }
+                                        else { detailsText = detailsText.replace("{created_at}", moment(info.data[indexClip]['created_at']).format("MMMM D, YYYY")); }
                                     }
                                     if (detailsText.includes("{creator_name}")) {
-                                        detailsText = detailsText.replace("{creator_name}", info.data[indexClip]['creator_name']);
+                                        if (watchClip === true) { detailsText = detailsText.replace("{creator_name}", localStorage.getItem('twitchSOWatchCreatorName')); }
+                                        else if (replayClip === true) { detailsText = detailsText.replace("{creator_name}", localStorage.getItem('twitchSOCreatorName')); }
+                                        else { detailsText = detailsText.replace("{creator_name}", info.data[indexClip]['creator_name']); }
                                     }
                                     if (detailsText.includes("{channel}")) {
-                                        detailsText = detailsText.replace("{channel}", info.data[indexClip]['broadcaster_name']);
+                                        if (watchClip === true) { detailsText = detailsText.replace("{channel}", localStorage.getItem('twitchSOWatchChannel')); }
+                                        else if (replayClip === true) { detailsText = detailsText.replace("{channel}", localStorage.getItem('twitchSOChannel')); }
+                                        else { detailsText = detailsText.replace("{channel}", info.data[indexClip]['broadcaster_name']); }
                                     }
                                     if (detailsText.includes("{url}")) {
-                                        detailsText = detailsText.replace("{url}", "twitch.tv/" + info.data[indexClip]['broadcaster_name'].toLowerCase());
+                                        if (watchClip === true) { detailsText = detailsText.replace("{url}", "twitch.tv/" + localStorage.getItem('twitchSOWatchChannel').toLowerCase()); }
+                                        else if (replayClip === true) { detailsText = detailsText.replace("{url}", "twitch.tv/" + localStorage.getItem('twitchSOChannel').toLowerCase()); }
+                                        else { detailsText = detailsText.replace("{url}", "twitch.tv/" + info.data[indexClip]['broadcaster_name'].toLowerCase()); }
                                     }
-                                    clipDetailsText = "<div id='details-container' class='hide'><span class='details-text'>" + detailsText + "</span></div>"
+                                    // not even used
+                                    //clipDetailsText = "<div id='details-container' class='hide'><span class='details-text'>" + detailsText + "</span></div>"
 
                                     let dText = "";
 
@@ -581,17 +603,6 @@ $(document).ready(function () {
                                     }
         
                                     $("<div id='details-container'>" + dText + "</div>").appendTo('#container');
-
-                                    if (watchClip === true) {
-                                        if (document.getElementById("text-container")) {
-                                            document.getElementById("text-container").remove();
-                                        }
-                                        if (document.getElementById("details-container")) {
-                                            document.getElementById("details-container").remove();
-                                        }
-
-                                        titleText = '';
-                                    }
                                     
                                 } else {
                                     clipDetailsText = "<div id='details-container' class='hide'><span class='details-text'>Go check out " + info.data[indexClip]['broadcaster_name'] + "</span></div>"
@@ -647,6 +658,10 @@ $(document).ready(function () {
                                 // Save clip url to localstorage so that it can be replayed if needed
                                 localStorage.setItem('twitchSOClipUrl', clip_url);
                                 localStorage.setItem('twitchSOChannel', getChannel);
+                                localStorage.setItem('twitchSOTitle', info.data[indexClip]['title']);
+                                localStorage.setItem('twitchSOGameID', info.data[indexClip]['game_id']);
+                                localStorage.setItem('twitchSOCreatedAt', info.data[indexClip]['created_at']);
+                                localStorage.setItem('twitchSOCreatorName', info.data[indexClip]['creator_name']);
                             }
 
                         } else {
