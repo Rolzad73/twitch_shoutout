@@ -303,7 +303,7 @@ $(document).ready(function () {
                     // save the clip url to localstorage
                     localStorage.setItem('twitchSOWatchClip', info.data[0]['clip_url']);
                     localStorage.setItem('twitchSOWatchChannel', info.data[0]['broadcaster_name']);
-                    localStorage.setItem('twitchSOWatchTitle', info.data[0]['title']);
+                    localStorage.setItem('twitchSOWatchTitle', info.data[0]['title'].replace(/^"(.*)"$/, '$1'));
                     localStorage.setItem('twitchSOWatchCreatedAt', info.data[0]['created_at']);
                     localStorage.setItem('twitchSOWatchCreatorName', info.data[0]['creator_name']);
                     localStorage.setItem('twitchSOWatchGameID', info.data[0]['game_id']);
@@ -537,7 +537,7 @@ $(document).ready(function () {
                                         else if (replayClip === true) { detailsText = detailsText.replace("{title}", localStorage.getItem('twitchSOTitle')); }
                                         else {
                                             if (info.data[indexClip]['title']) {
-                                                detailsText = detailsText.replace("{title}", info.data[indexClip]['title']);
+                                                detailsText = detailsText.replace("{title}", info.data[indexClip]['title'].replace(/^"(.*)"$/, '$1'));
                                             } else {
                                                 detailsText = detailsText.replace("{title}", "?");
                                             }
@@ -567,9 +567,9 @@ $(document).ready(function () {
 
                                     // Format created_at date
                                     if (detailsText.includes("{created_at}")) {
-                                        if (watchClip === true) { detailsText = detailsText.replace("{created_at}", moment(localStorage.getItem('twitchSOWatchCreatedAt')).format("MMMM D, YYYY")); }
-                                        else if (replayClip === true) { detailsText = detailsText.replace("{created_at}", moment(localStorage.getItem('twitchSOCreatedAt')).format("MMMM D, YYYY")); }
-                                        else { detailsText = detailsText.replace("{created_at}", moment(info.data[indexClip]['created_at']).format("MMMM D, YYYY")); }
+                                        if (watchClip === true) { detailsText = detailsText.replace("{created_at}", moment(localStorage.getItem('twitchSOWatchCreatedAt')).format("MMM D, YYYY")); }
+                                        else if (replayClip === true) { detailsText = detailsText.replace("{created_at}", moment(localStorage.getItem('twitchSOCreatedAt')).format("MMM D, YYYY")); }
+                                        else { detailsText = detailsText.replace("{created_at}", moment(info.data[indexClip]['created_at']).format("MMM D, YYYY")); }
                                     }
                                     if (detailsText.includes("{creator_name}")) {
                                         if (watchClip === true) { detailsText = detailsText.replace("{creator_name}", localStorage.getItem('twitchSOWatchCreatorName')); }
@@ -593,7 +593,7 @@ $(document).ready(function () {
 
                                     // split on line breaks and create an array
                                     let separateLines = detailsText.split(/\r?\n|\r|\n/g);
-                        
+
                                     // interate over separateLines array
                                     separateLines.forEach(lineBreaks);
         
@@ -654,11 +654,11 @@ $(document).ready(function () {
                                 clearInterval(startTimer);
                             };
 
-                            if (watch === false) {
+                            if (watch === false && replay == false) {
                                 // Save clip url to localstorage so that it can be replayed if needed
                                 localStorage.setItem('twitchSOClipUrl', clip_url);
                                 localStorage.setItem('twitchSOChannel', getChannel);
-                                localStorage.setItem('twitchSOTitle', info.data[indexClip]['title']);
+                                localStorage.setItem('twitchSOTitle', info.data[indexClip]['title'].replace(/^"(.*)"$/, '$1'));
                                 localStorage.setItem('twitchSOGameID', info.data[indexClip]['game_id']);
                                 localStorage.setItem('twitchSOCreatedAt', info.data[indexClip]['created_at']);
                                 localStorage.setItem('twitchSOCreatorName', info.data[indexClip]['creator_name']);
