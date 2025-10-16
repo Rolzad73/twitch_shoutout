@@ -7,28 +7,24 @@ $(document).ready(function () {
         return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
     }
 
-    function arrayPlusDelay(array, delegate, delay) {
-        // initialize all calls right away
-        array.forEach(function (el, i) {
-            setTimeout(function () {
-                // each loop, call passed in function
-                delegate(array[i]);
+    // clear localStorage on load. Some clips have a expire time that needs to be refreshed and can not sit in localStorage for too long.
+    localStorage.clear();
+    console.log('Cleared localStorage');
 
-                // stagger the timeout for each loop by the index
-            }, i * delay);
-        })
+    // Function to randomly select a api server
+    function setRandomServer() {
+        // set the api gateway servers 
+        const servers = ["https://twitchapi.teklynk.com","https://twitchapi.teklynk.dev","https://twitchapi2.teklynk.dev"];
+
+        // Randomly select a server
+        const randomIndex = Math.floor(Math.random() * servers.length);
+        const selectedServer = servers[randomIndex];
+
+        return selectedServer;
     }
 
-    // Sort function
-    function sortByProperty(property) {
-        return function (a, b) {
-            if (a[property] < b[property])
-                return 1;
-            else if (a[property] > b[property])
-                return -1;
-            return 0;
-        }
-    }
+    // Call the function
+    const apiServer = setRandomServer();
 
     let getChannel;
 
@@ -36,11 +32,11 @@ $(document).ready(function () {
 
     let clipDetailsText;
 
+    let indexClip = 0;
+
     let cmdArray = [];
 
     let client = '';
-
-    let lowQualityVideo = '';
 
     let channelName = getUrlParameter('channel').toLowerCase().trim();
 
@@ -66,13 +62,9 @@ $(document).ready(function () {
 
     let command = getUrlParameter('command').trim();
 
-    let lowQuality = getUrlParameter('lowQuality');
-
     let customMsg = getUrlParameter('customMsg').trim();
 
     let customTitle = getUrlParameter('customTitle').trim();
-
-    let limit = getUrlParameter('limit').trim();
 
     let dateRange = getUrlParameter('dateRange').trim();
 
@@ -84,6 +76,10 @@ $(document).ready(function () {
 
     let themeOption = getUrlParameter('themeOption').trim();
 
+    let clip_Id = '';
+
+    let userIsVip = false;
+
     if (!raided) {
         raided = "false"; //default
     }
@@ -94,10 +90,6 @@ $(document).ready(function () {
 
     if (!delay) {
         delay = "10"; //default
-    }
-
-    if (!limit) {
-        limit = "20"; //default
     }
 
     if (!command) {
@@ -128,10 +120,6 @@ $(document).ready(function () {
         showImage = 'false'; // default
     }
 
-    if (!lowQuality) {
-        lowQuality = 'false'; // default
-    }
-
     if (channelName === '') {
         alert('channel is not set in the URL');
     }
@@ -157,6 +145,8 @@ $(document).ready(function () {
 
     let watch = false; // set variable. default value
 
+    let clip_url = '';
+
     // Load theme css file if theme is set
     if (parseInt(themeOption) > 0) {
         $('head').append('<link rel="stylesheet" type="text/css" href="assets/css/theme' + themeOption + '.css">');
@@ -165,7 +155,7 @@ $(document).ready(function () {
     // Get game details function
     function game_title(game_id) {
         let $jsonParse = JSON.parse($.getJSON({
-            'url': "https://twitchapi.teklynk.com/getgame.php?id=" + game_id,
+            'url': apiServer + "/getgame.php?id=" + game_id,
             'async': false
         }).responseText);
 
@@ -174,7 +164,7 @@ $(document).ready(function () {
 
     // Twitch API get user info for !so command
     let getInfo = function (SOChannel, callback) {
-        let urlU = "https://twitchapi.teklynk.com/getuserinfo.php?channel=" + SOChannel;
+        let urlU = apiServer + "/getuserinfo.php?channel=" + SOChannel;
         let xhrU = new XMLHttpRequest();
         xhrU.open("GET", urlU);
         xhrU.onreadystatechange = function () {
@@ -190,7 +180,7 @@ $(document).ready(function () {
 
     // Twitch API get last game played from a user
     let getStatus = function (SOChannel, callback) {
-        let urlG = "https://twitchapi.teklynk.com/getuserstatus.php?channel=" + SOChannel + "";
+        let urlG = apiServer + "/getuserstatus.php?channel=" + SOChannel + "";
         let xhrG = new XMLHttpRequest();
         xhrG.open("GET", urlG);
         xhrG.onreadystatechange = function () {
@@ -205,8 +195,8 @@ $(document).ready(function () {
     };
 
     // Twitch API get clips for !so command
-    let getClips = function (SOChannel, limit, callback) {
-        let urlC = "https://twitchapi.teklynk.com/getuserclips.php?channel=" + SOChannel + "&limit=" + limit + "" + dateRange;
+    let getClips = function (SOChannel, callback) {
+        let urlC = apiServer + "/getuserclips.php?channel=" + SOChannel + "" + dateRange + "&random=true";
         let xhrC = new XMLHttpRequest();
         xhrC.open("GET", urlC);
         xhrC.onreadystatechange = function () {
@@ -222,7 +212,7 @@ $(document).ready(function () {
 
     // Twitch API get clip for !watchclip command
     let getClipUrl = function (id, callback) {
-        let urlV = "https://twitchapi.teklynk.com/getuserclips.php?id=" + id;
+        let urlV = apiServer + "/getuserclips.php?id=" + id;
         let xhrV = new XMLHttpRequest();
         xhrV.open("GET", urlV);
         xhrV.onreadystatechange = function () {
@@ -269,6 +259,20 @@ $(document).ready(function () {
 
     client.connect().catch(console.error);
 
+    // Check if user is VIP
+    client.on('chat', (channel, userstate, message, self) => {
+        // Ignore echoed messages.
+        if (self) {
+            return false;
+        }
+
+        if (userstate && userstate.badges && userstate.badges.vip !== null && userstate.badges.vip !== undefined && userstate.badges.vip !== '') {
+            userIsVip = true;
+        } else {
+            userIsVip = false;
+        }
+    })
+
     // triggers on message
     client.on('chat', (channel, user, message, self) => {
 
@@ -278,8 +282,7 @@ $(document).ready(function () {
         }
 
         // If message contains a clip url
-        if (message.includes('https://clips.twitch.tv/')) {
-            // TODO: explore alternate clip URL variations
+        if (message.includes('https://clips.twitch.tv/') || message.includes('/clip/')) {
 
             // Remove trailing spaces from message
             message = message.trim();
@@ -287,32 +290,38 @@ $(document).ready(function () {
             // get the url from the chat message
             let chatClipUrl = detectURLs(message);
 
+            console.log('clip_url: ' + chatClipUrl);
+
             // parse url into an array
             let urlArr = chatClipUrl[0].split('/');
 
             // extract the clip id/slug from the url
-            let clip_Id = urlArr[3];
+            if (message.includes('https://clips.twitch.tv/')) {
+                clip_Id = urlArr[3];
+                // remove everything in the url after the '?'
+                clip_Id = clip_Id.split('?')[0];
+            } else {
+                clip_Id = urlArr[5];
+            }
 
-            // remove everything in the url after the '?'
-            clip_Id = clip_Id.split('?')[0];
+            console.log('clip_Id: ' + clip_Id);
 
             // get the clip_url from the api
             getClipUrl(clip_Id, function (info) {
-                if (info.data[0]['clip_url']) {
-                    console.log(info.data[0]);
+                if (info.data[0].clip_url) {
                     // save the clip url to localstorage
-                    localStorage.setItem('twitchSOWatchClip', info.data[0]['clip_url']);
-                    localStorage.setItem('twitchSOWatchChannel', info.data[0]['broadcaster_name']);
-                    localStorage.setItem('twitchSOWatchTitle', info.data[0]['title'].replace(/^"(.*)"$/, '$1'));
-                    localStorage.setItem('twitchSOWatchCreatedAt', info.data[0]['created_at']);
-                    localStorage.setItem('twitchSOWatchCreatorName', info.data[0]['creator_name']);
-                    localStorage.setItem('twitchSOWatchGameID', info.data[0]['game_id']);
+                    localStorage.setItem('twitchSOWatchClip', info.data[0].clip_url);
+                    localStorage.setItem('twitchSOWatchChannel', info.data[0].broadcaster_name);
+                    localStorage.setItem('twitchSOWatchTitle', info.data[0].title.replace(/^"(.*)"$/, '$1'));
+                    localStorage.setItem('twitchSOWatchCreatedAt', info.data[0].created_at);
+                    localStorage.setItem('twitchSOWatchCreatorName', info.data[0].creator_name);
+                    localStorage.setItem('twitchSOWatchGameID', info.data[0].game_id);
                 }
             });
 
         }
 
-        if (user['message-type'] === 'chat' && message.startsWith('!') && (user.mod || user.username === channelName)) {
+        if (user['message-type'] === 'chat' && message.startsWith('!') && (user.mod || userIsVip || user.username === channelName)) {
 
             // Hard-coded commands to control the clips
             if (message === "!sostop" || message === "!stopso" || message === "!stopclip" || message === "!clipstop" || message === "!clipreload") {
@@ -322,8 +331,6 @@ $(document).ready(function () {
 
             // Replay previous shout-out clip
             } else if (message === "!clipreplay" || message === "!replayclip" || message === "!soreplay" || message === "!replayso") {
-
-                console.log("Replaying SO");
 
                 watch = false;
                 replay = true;
@@ -376,24 +383,11 @@ $(document).ready(function () {
                 return false; // Exit and Do nothing else
             }
 
-            if (modsOnly === 'true' && (user.mod || user.username === channelName)) {
-                // If is array, then iterate over each channel name. Uses the timeOut value from the URL.
-                if (cmdArray.length > 1) {
-                    console.log(cmdArray);
-                    arrayPlusDelay(cmdArray, function (obj) {
-                        obj = obj.replace('@', '');
-                        obj = obj.trim();
-                        obj = obj.toLowerCase();
-
-                        console.log('In Array: ' + obj);
-
-                        doShoutOut(obj);
-
-                    }, parseInt(timeOut) * 1000 + 1000); // + 1 seconds, just to be sure that elements are completely removed
-                } else {
-                    console.log(getChannel);
-                    doShoutOut(getChannel); // Mods only
-                }
+            if (modsOnly === 'true' && (user.mod || userIsVip || user.username === channelName)) {
+ 
+                console.log(getChannel);
+                doShoutOut(getChannel); // Mods and VIPs only
+                
             } else if (modsOnly === 'false' || user.username === channelName) {
                 doShoutOut(getChannel); // Everyone
             }
@@ -401,6 +395,49 @@ $(document).ready(function () {
     });
 
     function doShoutOut(getChannel, replayClip = false, watchClip = false) {
+
+        if (watchClip === true || replayClip === true) {
+            // Ignore if video clip is playing
+            if (document.getElementById("clip") || document.getElementById("text-container")) {
+                console.log('A clip is currently playing. Ignoring !watchclip command until clip is finished');
+                return false; // Exit and Do nothing
+            }
+            // If chat command = !replayclip
+            if (replayClip === true) {
+                clip_url = localStorage.getItem('twitchSOClipUrl');
+                console.log('Replaying: ' + clip_url);
+            // If chat command = !watchclip
+            } else if (watchClip === true) {
+                clip_url = localStorage.getItem('twitchSOWatchClip');
+                console.log('Watching: ' + clip_url);
+            }
+
+            if (document.getElementById("text-container")) {
+                document.getElementById("text-container").remove();
+            }
+            if (document.getElementById("details-container")) {
+                document.getElementById("details-container").remove();
+            }
+
+            titleText = '';
+
+            $("<video id='clip' class='video fade' width='100%' height='100%' autoplay><source src='" + clip_url + "' type='video/mp4'></video>").appendTo("#container");
+
+            // Remove video element after it has finished playing
+            document.getElementById("clip").onended = function (e) {
+                // Remove existing video element
+                if (document.getElementById("clip")) {
+                    document.getElementById("clip").remove();
+                }
+                if (document.getElementById("text-container")) {
+                    document.getElementById("text-container").remove();
+                }
+                if (document.getElementById("details-container")) {
+                    document.getElementById("details-container").remove();
+                }
+            };
+
+        }
 
         getStatus(getChannel, function (info) {
             // If user exists
@@ -441,15 +478,18 @@ $(document).ready(function () {
                 // Show Clip
                 if (showClip === 'true' || showRecentClip === 'true') {
 
-                    getClips(getChannel, limit, function (info) {
+                    getClips(getChannel, function (info) {
+
+                        console.log(info.data[0]);
 
                         // If clips exist
-                        if (info.data.length > 0) {
+                        if (info.data[0] && info.data[0].clip_url > '') {
 
-                            console.log('clips exist!');
+                            console.log('Clips exist!');
 
-                            // Sort clips array by created_at
-                            info.data.sort(sortByProperty('created_at'));
+                            console.log('Clip URL: ' + info.data[0].clip_url);
+
+                            let clip_url = info.data[0].clip_url;
 
                             // Remove existing video element
                             if (document.getElementById("clip")) {
@@ -460,37 +500,6 @@ $(document).ready(function () {
                             }
                             if (document.getElementById("details-container")) {
                                 document.getElementById("details-container").remove();
-                            }
-
-                            // Default value = most recent index after sorted
-                            let indexClip = 0;
-
-                            // Random clip logic
-                            if (showClip === 'true') {
-                                let numOfClips = info.data.length;
-                                indexClip = Math.floor(Math.random() * numOfClips);
-                            }
-
-                            // Get and set variable clip_url from json
-                            let clip_url = info.data[indexClip]['clip_url'];
-
-                            let clip_poster = info.data[indexClip]['thumbnail_url'].replace('-480x272','');
-
-                            // If chat command = !replayclip
-                            if (replayClip === true) {
-                                clip_url = localStorage.getItem('twitchSOClipUrl');
-                                console.log('Replaying: ' + clip_url);
-                            // If chat command = !watchclip
-                            } else if (watchClip === true) {
-                                clip_url = localStorage.getItem('twitchSOWatchClip');
-                                console.log('Watching: ' + clip_url);
-                            }
-
-                            // Low clip quality mode
-                            if (lowQuality === 'true') {
-                                lowQualityVideo = "<source src='" + clip_url.replace('.mp4', '-360.mp4') + "' type='video/mp4'>";
-                            } else {
-                                lowQualityVideo = '';
                             }
 
                             // Text on top of clip
@@ -523,7 +532,7 @@ $(document).ready(function () {
                             }, 500); // wait time
 
                             // Video Clip
-                            $("<video id='clip' class='video fade' width='100%' height='100%' autoplay poster='" + clip_poster + "'>" + lowQualityVideo + "<source src='" + clip_url + "' type='video/mp4'></video>").appendTo("#container");
+                            $("<video id='clip' class='video fade' width='100%' height='100%' autoplay><source src='" + clip_url + "' type='video/mp4'></video>").appendTo("#container");
 
                             // Clip details panel
                             if (showDetails === 'true') {
@@ -603,7 +612,6 @@ $(document).ready(function () {
                                     }
         
                                     $("<div id='details-container'>" + dText + "</div>").appendTo('#container');
-                                    
                                 } else {
                                     clipDetailsText = "<div id='details-container' class='hide'><span class='details-text'>Go check out " + info.data[indexClip]['broadcaster_name'] + "</span></div>"
                                 }
